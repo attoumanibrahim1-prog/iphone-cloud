@@ -9,33 +9,21 @@ jobs:
     timeout-minutes: 60
 
     steps:
-
-      # ======================================================
-      # MAC / XCODE
-      # ======================================================
-
       - name: Mac information
         shell: bash
         run: |
           set -e
 
-          echo "===== MACHINE ====="
+          echo "===== MAC ====="
           uname -a
           uname -m
 
-          echo ""
           echo "===== XCODE ====="
           xcodebuild -version
-          xcode-select -p
 
-          echo ""
           echo "===== SIMULATORS ====="
           xcrun simctl list devices available
 
-
-      # ======================================================
-      # INSTALLATION
-      # ======================================================
 
       - name: Install Baguette and Cloudflare
         shell: bash
@@ -44,28 +32,18 @@ jobs:
 
           brew install baguette cloudflared
 
-          echo ""
           echo "===== BAGUETTE ====="
           which baguette
-          baguette --help | head -40 || true
 
-          echo ""
-          echo "===== CLOUDFLARED ====="
-          which cloudflared
+          echo "===== CLOUDFLARE ====="
           cloudflared --version
 
-
-      # ======================================================
-      # BOOT IPHONE
-      # ======================================================
 
       - name: Boot iPhone 17 Pro
         id: simulator
         shell: bash
         run: |
           set -e
-
-          echo "Recherche iPhone 17 Pro..."
 
           UDID="$(
             xcrun simctl list devices available |
@@ -75,8 +53,6 @@ jobs:
           )"
 
           if [ -z "$UDID" ]; then
-            echo "Fallback iPhone 17..."
-
             UDID="$(
               xcrun simctl list devices available |
               grep "iPhone 17 (" |
@@ -86,38 +62,23 @@ jobs:
           fi
 
           if [ -z "$UDID" ]; then
-            echo "Aucun iPhone trouvÃ©."
-            xcrun simctl list devices available
+            echo "Aucun iPhone trouvé"
             exit 1
           fi
 
-          echo "UDID=$UDID"
+          echo "iPhone UDID: $UDID"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
-          echo ""
-          echo "Boot..."
-
           xcrun simctl boot "$UDID" || true
-
           xcrun simctl bootstatus "$UDID" -b
 
-          echo ""
-          echo "===== IPHONE READY ====="
+          echo "===== IPHONE BOOTED ====="
 
-          xcrun simctl list devices |
-          grep "$UDID"
-
-
-      # ======================================================
-      # DEMARRER BAGUETTE UNE SEULE FOIS
-      # ======================================================
 
       - name: Start Baguette
         shell: bash
         run: |
           set -e
-
-          echo "DÃ©marrage Baguette..."
 
           nohup baguette serve \
             --host 127.0.0.1 \
@@ -125,60 +86,34 @@ jobs:
             --allowed-hosts '*.trycloudflare.com' \
             > baguette.log 2>&1 &
 
-          BAGUETTE_PID=$!
+          PID=$!
 
-          echo "$BAGUETTE_PID" > baguette.pid
-
-          echo "PID Baguette: $BAGUETTE_PID"
+          echo "Baguette PID: $PID"
 
           for i in {1..120}; do
 
-            # VÃ©rifier si le processus est mort
-            if ! kill -0 "$BAGUETTE_PID" 2>/dev/null; then
-              echo ""
-              echo "================================"
-              echo "BAGUETTE A CRASH"
-              echo "================================"
-              echo ""
-
+            if ! kill -0 "$PID" 2>/dev/null; then
+              echo "===== BAGUETTE CRASH ====="
               cat baguette.log || true
-
               exit 1
             fi
 
-            # VÃ©rifier serveur HTTP
-            if curl \
-              -fsS \
+            if curl -fsS \
               http://127.0.0.1:8421/simulators.json \
               > /tmp/simulators.json
             then
-
-              echo ""
-              echo "================================"
-              echo "BAGUETTE ONLINE"
-              echo "================================"
-              echo ""
-
+              echo "===== BAGUETTE READY ====="
               cat /tmp/simulators.json
-
               exit 0
             fi
 
             sleep 1
           done
 
-          echo ""
-          echo "Timeout Baguette."
-          echo ""
-
+          echo "===== BAGUETTE TIMEOUT ====="
           cat baguette.log || true
-
           exit 1
 
-
-      # ======================================================
-      # CLOUDFLARE
-      # ======================================================
 
       - name: Create Cloudflare tunnel
         id: tunnel
@@ -186,29 +121,22 @@ jobs:
         run: |
           set -e
 
-          echo "DÃ©marrage Cloudflare..."
-
           nohup cloudflared tunnel \
             --url http://127.0.0.1:8421 \
             --no-autoupdate \
             > cloudflare.log 2>&1 &
 
-          CLOUDFLARE_PID=$!
+          PID=$!
 
-          echo "Cloudflare PID: $CLOUDFLARE_PID"
+          echo "Cloudflare PID: $PID"
 
           URL=""
 
           for i in {1..120}; do
 
-            if ! kill -0 "$CLOUDFLARE_PID" 2>/dev/null; then
-
-              echo ""
-              echo "Cloudflare a crash."
-              echo ""
-
+            if ! kill -0 "$PID" 2>/dev/null; then
+              echo "===== CLOUDFLARE CRASH ====="
               cat cloudflare.log || true
-
               exit 1
             fi
 
@@ -227,84 +155,16 @@ jobs:
           done
 
           if [ -z "$URL" ]; then
-
-            echo ""
-            echo "URL Cloudflare introuvable."
-            echo ""
-
-            cat cloudflare.log
-
+            echo "Aucune URL Cloudflare"
+            cat cloudflare.log || true
             exit 1
           fi
 
-          echo ""
-          echo "================================"
-          echo "CLOUDFLARE ONLINE"
-          echo "================================"
-          echo ""
-
+          echo "===== CLOUDFLARE READY ====="
           echo "$URL"
 
           echo "url=$URL" >> "$GITHUB_OUTPUT"
 
-
-      # ======================================================
-      # TESTER LE LIEN PUBLIC
-      # ======================================================
-
-      - name: Test public iPhone
-        shell: bash
-        env:
-          URL: ${{ steps.tunnel.outputs.url }}
-        run: |
-          set -e
-
-          echo "Test du lien public..."
-          echo "$URL"
-
-          for i in {1..60}; do
-
-            CODE="$(
-              curl \
-              -L \
-              -s \
-              -o /tmp/public.html \
-              -w "%{http_code}" \
-              "$URL/simulators" || true
-            )"
-
-            echo "HTTP $CODE"
-
-            if [ "$CODE" = "200" ]; then
-
-              echo ""
-              echo "================================"
-              echo "PUBLIC IPHONE ONLINE"
-              echo "================================"
-
-              exit 0
-            fi
-
-            sleep 2
-          done
-
-          echo ""
-          echo "Le tunnel existe mais l'interface ne rÃ©pond pas."
-          echo ""
-
-          echo "===== BAGUETTE LOG ====="
-          cat baguette.log || true
-
-          echo ""
-          echo "===== CLOUDFLARE LOG ====="
-          cat cloudflare.log || true
-
-          exit 1
-
-
-      # ======================================================
-      # SUMMARY
-      # ======================================================
 
       - name: iPhone ready
         shell: bash
@@ -312,61 +172,45 @@ jobs:
           URL: ${{ steps.tunnel.outputs.url }}
           UDID: ${{ steps.simulator.outputs.udid }}
         run: |
-
           echo ""
-          echo "=========================================="
-          echo "        IPHONE CLOUD READY"
-          echo "=========================================="
+          echo "============================================"
+          echo "          IPHONE CLOUD READY"
+          echo "============================================"
+          echo ""
+          echo "$URL/simulators"
           echo ""
           echo "$URL/simulators/$UDID"
           echo ""
 
           {
-            echo "# ðŸ“± iPhone Cloud prÃªt"
+            echo "# 📱 iPhone Cloud prêt"
             echo ""
-            echo "## ðŸ‘‰ [OUVRIR L'IPHONE]($URL/simulators/$UDID)"
+            echo "## 👉 [OUVRIR LES IPHONES]($URL/simulators)"
             echo ""
-            echo "### [Tous les simulateurs]($URL/simulators)"
-            echo ""
-            echo "### [Device Farm]($URL/farm)"
+            echo "## 👉 [OUVRIR CET IPHONE]($URL/simulators/$UDID)"
             echo ""
             echo "---"
             echo ""
-            echo "**Appareil :** iPhone 17 Pro"
-            echo ""
-            echo "**Interface :** Baguette"
-            echo ""
-            echo "âš ï¸ URL temporaire Cloudflare."
-            echo ""
+            echo "Le lien reste actif tant que le workflow tourne."
           } >> "$GITHUB_STEP_SUMMARY"
 
-
-      # ======================================================
-      # KEEP ALIVE
-      # ======================================================
 
       - name: Keep iPhone alive
         shell: bash
         env:
           URL: ${{ steps.tunnel.outputs.url }}
         run: |
-
           echo ""
-          echo "Session iPhone active pendant 45 minutes."
-          echo ""
+          echo "Session active pendant 45 minutes"
           echo "$URL/simulators"
           echo ""
 
           for i in {45..1}; do
+            echo "Temps restant: $i minutes"
 
-            echo "Temps restant : $i min"
-
-            # Le serveur local doit toujours rÃ©pondre
-            curl \
-              -fsS \
+            curl -fsS \
               http://127.0.0.1:8421/simulators.json \
               > /dev/null || true
 
             sleep 60
-
           done
