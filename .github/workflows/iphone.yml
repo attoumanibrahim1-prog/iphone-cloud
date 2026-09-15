@@ -86,7 +86,7 @@ jobs:
           fi
 
           if [ -z "$UDID" ]; then
-            echo "Aucun iPhone trouvé."
+            echo "Aucun iPhone trouvÃ©."
             xcrun simctl list devices available
             exit 1
           fi
@@ -117,7 +117,7 @@ jobs:
         run: |
           set -e
 
-          echo "Démarrage Baguette..."
+          echo "DÃ©marrage Baguette..."
 
           nohup baguette serve \
             --host 127.0.0.1 \
@@ -133,7 +133,7 @@ jobs:
 
           for i in {1..120}; do
 
-            # Vérifier si le processus est mort
+            # VÃ©rifier si le processus est mort
             if ! kill -0 "$BAGUETTE_PID" 2>/dev/null; then
               echo ""
               echo "================================"
@@ -146,7 +146,7 @@ jobs:
               exit 1
             fi
 
-            # Vérifier serveur HTTP
+            # VÃ©rifier serveur HTTP
             if curl \
               -fsS \
               http://127.0.0.1:8421/simulators.json \
@@ -186,7 +186,7 @@ jobs:
         run: |
           set -e
 
-          echo "Démarrage Cloudflare..."
+          echo "DÃ©marrage Cloudflare..."
 
           nohup cloudflared tunnel \
             --url http://127.0.0.1:8421 \
@@ -289,7 +289,7 @@ jobs:
           done
 
           echo ""
-          echo "Le tunnel existe mais l'interface ne répond pas."
+          echo "Le tunnel existe mais l'interface ne rÃ©pond pas."
           echo ""
 
           echo "===== BAGUETTE LOG ====="
@@ -322,9 +322,9 @@ jobs:
           echo ""
 
           {
-            echo "# 📱 iPhone Cloud prêt"
+            echo "# ðŸ“± iPhone Cloud prÃªt"
             echo ""
-            echo "## 👉 [OUVRIR L'IPHONE]($URL/simulators/$UDID)"
+            echo "## ðŸ‘‰ [OUVRIR L'IPHONE]($URL/simulators/$UDID)"
             echo ""
             echo "### [Tous les simulateurs]($URL/simulators)"
             echo ""
@@ -336,7 +336,7 @@ jobs:
             echo ""
             echo "**Interface :** Baguette"
             echo ""
-            echo "⚠️ URL temporaire Cloudflare."
+            echo "âš ï¸ URL temporaire Cloudflare."
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -361,7 +361,7 @@ jobs:
 
             echo "Temps restant : $i min"
 
-            # Le serveur local doit toujours répondre
+            # Le serveur local doit toujours rÃ©pondre
             curl \
               -fsS \
               http://127.0.0.1:8421/simulators.json \
